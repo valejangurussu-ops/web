@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="1200" viewBox="0 0 1200 1200" role="img" aria-label="Logo VALE">
+  <!-- Background (transparent) -->
+  <rect width="100%" height="100%" fill="transparent"/>
+
+  <!-- Group to center and scale the motif -->
+  <g transform="translate(120,120) scale(0.8)">
+
+    <!-- Outer blue-gray triangle (thick stroke) -->
+    <polygon points="100,900 100,210 890,560"
+             fill="none" stroke="#7fa1ab" stroke-width="30" stroke-linejoin="miter" stroke-linecap="square"/>
+
+    <!-- Middle orange triangle (slightly inset) -->
+    <polygon points="150,830 160,260 840,540"
+             fill="none" stroke="#ff6b22" stroke-width="24" stroke-linejoin="miter" stroke-linecap="square"/>
+
+    <!-- Inner purple triangle (topmost outline) -->
+    <polygon points="210,760 220,300 820,520"
+             fill="none" stroke="#b57cf2" stroke-width="20" stroke-linejoin="miter" stroke-linecap="square"/>
+
+    <!-- Additional thin inner accent (to mimic small inner purple seen) -->
+    <polygon points="320,620 330,370 760,500"
+             fill="none" stroke="#b57cf2" stroke-width="10" stroke-linejoin="miter" stroke-linecap="square" opacity="0.95"/>
+
+    <!-- Text "VALE" centered on top of triangles.
+         Use a dark gray fill and a white outer stroke to mimic the cutout/outline effect.
+         paint-order ensures stroke is drawn beneath fill visually for crisp edge.
+    -->
+    <g aria-hidden="false">
+      <style>
+        /* Inline font stack: prefers a geometric sans; falls back to system sans */
+        .logo-text { font-family: "Montserrat", "Helvetica Neue", Arial, sans-serif; font-weight: 800; }
+      </style>
+
+      <!-- White outline (slightly thicker) achieved with stroke + paint-order -->
+      <text x="180" y="520" class="logo-text"
+            font-size="260" fill="#3b3b3b"
+            stroke="#ffffff" stroke-width="22" paint-order="stroke fill"
+            style="letter-spacing:6px;">
+        VALE
+      </text>
+
+      <!-- Slight darker smaller inner stroke to sharpen edges (optional subtle shadow) -->
+      <text x="180" y="520" class="logo-text"
+            font-size="260" fill="none"
+            stroke="#333333" stroke-width="1" paint-order="stroke"
+            style="letter-spacing:6px; mix-blend-mode:multiply;"/>
+    </g>
+
+    <!-- Small finishing touch: a subtle drop shadow so text lifts from background -->
+    <defs>
+      <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="3" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.12"/>
+      </filter>
+    </defs>
+    <g filter="url(#softShadow)">
+      <!-- duplicate invisible text to apply shadow only (keeps original crisp) -->
+      <text x="180" y="520" class="logo-text" font-size="260" fill="transparent"
+            stroke="transparent" style="letter-spacing:6px;">VALE</text>
+    </g>
+
+  </g>
+</svg>
