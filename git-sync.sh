@@ -1,29 +1,42 @@
 #!/bin/bash
+set -eu
 
-set -e
-
-echo "🔀 Indo para branch main..."
+echo "🔀 Checkout main..."
 git checkout main
 
-echo "🔄 Dando pull no origin/main..."
+echo "🔄 Pull origin/main..."
 git pull origin main
 
-echo "🔀 Indo para branch deploy..."
-git checkout deploy
+echo "🔀 Checkout (ou criar) branch deploy..."
+if git show-ref --verify --quiet refs/heads/deploy; then
+  git checkout deploy
+else
+  git checkout -b deploy
+fi
 
-echo "🔁 Merge squash de main → deploy (priorizando main)..."
-git merge --squash main -X theirs --allow-unrelated-histories || true
+echo "🧹 Limpando arquivos TRACKED em deploy..."
+git rm -rf . || true
 
-echo "🧹 Forçando resolução automática de conflitos (aceitando main)..."
-git checkout --theirs .
+echo "🧽 Limpando arquivos não rastreados..."
+git clean -fdx || true
 
-echo "💾 Adicionando tudo..."
-git add .
+echo "📥 Copiando conteúdo de main para deploy..."
+git checkout main -- .
 
-echo "📝 Criando commit squash..."
-git commit -m "Atualiza deploy com mudanças da main (prioriza main)"
+echo "➕ Adicionando tudo..."
+git add -A
 
-echo "📤 Enviando para deploy..."
-git push origin deploy
+if git diff --cached --quiet; then
+  echo "ℹ️ Nenhuma mudança detectada. Enviando push mesmo assim..."
+  git push deploy HEAD:main --force-with-lease
+  echo "✅ Deploy sincronizado (nenhuma alteração)."
+  exit 0
+fi
 
-echo "✅ Deploy atualizado priorizando main!"
+echo "✏️ Criando commit único..."
+git commit -m "Deploy: single snapshot from main"
+
+echo "📤 Enviando push forçado para deploy:main..."
+git push deploy HEAD:main --force-with-lease
+
+echo "✅ Deploy atualizado com único commit."
