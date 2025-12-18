@@ -7,7 +7,7 @@ import { useAuthLevel } from "@/hooks/useAuthLevel";
 interface AuthRedirectProps {
   children: React.ReactNode;
   redirectTo?: string;
-  allowedLevels?: ('unauthenticated' | 'user' | 'admin')[];
+  allowedLevels?: ('unauthenticated' | 'user' | 'admin' | 'organization')[];
 }
 
 export function AuthRedirect({

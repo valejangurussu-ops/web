@@ -8,7 +8,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Validate environment variables
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -165,7 +165,7 @@ export async function POST(
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Check if profile was created by trigger
-    const { data: existingProfile, error: checkError } = await supabaseAdmin
+    const { data: existingProfile } = await supabaseAdmin
       .from('users')
       .select('id, profile_type')
       .eq('id', userId)
@@ -282,7 +282,7 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Validate environment variables
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -422,7 +422,14 @@ export async function GET(
     // Get users that belong to this organization
     // Check if user's auth metadata has organization_id matching this organization
     // Also include the main user
-    const organizationUsers: any[] = [];
+    interface OrganizationUser {
+      id: string;
+      name: string;
+      email: string;
+      profile_type?: string;
+      created_at: string;
+    }
+    const organizationUsers: OrganizationUser[] = [];
 
     // Get all auth users in batch to check metadata
     const userIds = (users || []).map(u => u.id);

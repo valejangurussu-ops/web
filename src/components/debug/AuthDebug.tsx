@@ -18,7 +18,7 @@ export function AuthDebug({ showAuthLevel = false }: { showAuthLevel?: boolean }
         <div>Role Loading: {roleLoading ? 'true' : 'false'}</div>
         <div>User ID: {user?.id || 'null'}</div>
         <div>User Email: {user?.email || 'null'}</div>
-        <div>User Role: {userRole?.role || 'null'}</div>
+        <div>User Role: {userRole || 'null'}</div>
         <div>Auth Level: {authLevel}</div>
         <div>Is Admin: {isAdmin ? 'true' : 'false'}</div>
       </div>

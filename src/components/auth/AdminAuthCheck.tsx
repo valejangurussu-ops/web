@@ -11,7 +11,7 @@ interface AdminAuthCheckProps {
 
 export function AdminAuthCheck({ children }: AdminAuthCheckProps) {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isOrganization, isSuperAdmin, loading: roleLoading } = useAuthLevel();
+  const { isAdmin, isOrganization, loading: roleLoading } = useAuthLevel();
   const router = useRouter();
   const [hasChecked, setHasChecked] = useState(false);
 

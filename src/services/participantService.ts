@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { getUserOrganizationId, canViewParticipants } from "@/utils/permissions";
+import { canViewParticipants } from "@/utils/permissions";
 
 export interface Participant {
   id: number;

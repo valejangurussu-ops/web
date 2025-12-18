@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Organization } from "@/types/organization";
 import { Event } from "@/types/event";
 import { organizationService } from "@/services/organizationService";

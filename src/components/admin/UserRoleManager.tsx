@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { roleService, UserRole } from "@/services/roleService";
 import { useAuthLevel } from "@/hooks/useAuthLevel";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,52 +27,7 @@ export function UserRoleManager() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [userOrgId, setUserOrgId] = useState<number | null>(null);
 
-  useEffect(() => {
-    const initialize = async () => {
-      if (isOrganization && user) {
-        // Get organization ID for organization admins
-        // First try direct lookup
-        let orgId = await getUserOrganizationId(user.id);
-
-        // If not found, try via API (for additional users with metadata)
-        if (!orgId) {
-          try {
-            const response = await fetch('/api/users/organizations', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ userIds: [user.id] }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              const org = data.organizations?.[user.id];
-              if (org) {
-                orgId = org.id;
-              }
-            }
-          } catch (error) {
-            console.error('Erro ao buscar organização via API:', error);
-          }
-        }
-
-        console.log('Organization Admin - User Org ID:', orgId);
-        setUserOrgId(orgId);
-
-        // Load users after setting orgId
-        if (orgId !== null) {
-          loadUsers(orgId);
-        }
-      } else if (isAdmin) {
-        // Super admin loads all users
-        loadUsers(null);
-      }
-    };
-    initialize();
-  }, [isAdmin, isOrganization, user]);
-
-  const loadUsers = async (orgId: number | null = null) => {
+  const loadUsers = useCallback(async (orgId: number | null = null) => {
     try {
       setLoadingUsers(true);
       let usersData = await roleService.getAllUsersWithRoles();
@@ -173,7 +128,52 @@ export function UserRoleManager() {
     } finally {
       setLoadingUsers(false);
     }
-  };
+  }, [isOrganization]);
+
+  useEffect(() => {
+    const initialize = async () => {
+      if (isOrganization && user) {
+        // Get organization ID for organization admins
+        // First try direct lookup
+        let orgId = await getUserOrganizationId(user.id);
+
+        // If not found, try via API (for additional users with metadata)
+        if (!orgId) {
+          try {
+            const response = await fetch('/api/users/organizations', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ userIds: [user.id] }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const org = data.organizations?.[user.id];
+              if (org) {
+                orgId = org.id;
+              }
+            }
+          } catch (error) {
+            console.error('Erro ao buscar organização via API:', error);
+          }
+        }
+
+        console.log('Organization Admin - User Org ID:', orgId);
+        setUserOrgId(orgId);
+
+        // Load users after setting orgId
+        if (orgId !== null) {
+          loadUsers(orgId);
+        }
+      } else if (isAdmin) {
+        // Super admin loads all users
+        loadUsers(null);
+      }
+    };
+    initialize();
+  }, [isAdmin, isOrganization, user, loadUsers]);
 
   const handleRoleChange = async (userId: string, newRole: 'user' | 'admin') => {
     try {

@@ -9,7 +9,6 @@ import { useState, useEffect } from "react";
 import OrganizationUserForm from "@/components/forms/OrganizationUserForm";
 import { useAuthLevel } from "@/hooks/useAuthLevel";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUserOrganizationId } from "@/utils/permissions";
 import {
   Table,
   TableBody,
@@ -30,7 +29,7 @@ export default function DetalhesOrganizacao() {
   const router = useRouter();
   const params = useParams();
   const organizationId = parseInt(params.id as string);
-  const { isOrganization, loading: authLevelLoading } = useAuthLevel();
+  const { isOrganization } = useAuthLevel();
   const { user } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +38,6 @@ export default function DetalhesOrganizacao() {
   const [showUserForm, setShowUserForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [userOrgId, setUserOrgId] = useState<number | null>(null);
 
   const loadUsers = async () => {
     try {
@@ -56,41 +54,6 @@ export default function DetalhesOrganizacao() {
     }
   };
 
-  useEffect(() => {
-    const initialize = async () => {
-      if (isOrganization && user) {
-        // Get organization ID for organization admins
-        let orgId = await getUserOrganizationId(user.id);
-
-        // If not found, try via API (for additional users with metadata)
-        if (!orgId) {
-          try {
-            const response = await fetch('/api/users/organizations', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ userIds: [user.id] }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              const org = data.organizations?.[user.id];
-              if (org) {
-                orgId = org.id;
-              }
-            }
-          } catch (error) {
-            console.error('Erro ao buscar organização via API:', error);
-          }
-        }
-
-        setUserOrgId(orgId);
-      }
-    };
-
-    initialize();
-  }, [isOrganization, user]);
 
   useEffect(() => {
     const loadOrganization = async () => {
@@ -115,6 +78,7 @@ export default function DetalhesOrganizacao() {
     if (organizationId) {
       loadOrganization();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
   const handleCreateUser = async (userData: { name: string; email: string; password?: string }) => {

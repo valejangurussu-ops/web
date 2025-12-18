@@ -54,13 +54,15 @@ class StatsService {
       // Calculate engagement rate (users who accepted at least one mission)
       const { data: usersWithEvents, error: engagementError } = await supabase
         .from('users_events')
-        .select('user_id', { distinct: true });
+        .select('user_id');
 
       if (engagementError) {
         console.error('Erro ao calcular taxa de engajamento:', engagementError);
       }
 
-      const engagedUsers = usersWithEvents?.length || 0;
+      // Get unique user IDs
+      const uniqueUserIds = new Set(usersWithEvents?.map(item => item.user_id) || []);
+      const engagedUsers = uniqueUserIds.size;
       const totalUsersCount = totalUsers || 0;
       const engagementRate = totalUsersCount > 0
         ? Math.round((engagedUsers / totalUsersCount) * 100)
