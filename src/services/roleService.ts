@@ -86,24 +86,90 @@ class RoleService {
   }
 
   // Listar todos os usuários com seus roles (apenas admins)
-  async getAllUsersWithRoles(): Promise<(UserRole & { user: { name: string; email: string } })[]> {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select(`
-        *,
-        user:users!user_roles_user_id_fkey (
-          name,
-          email
-        )
-      `)
+  async getAllUsersWithRoles(): Promise<(UserRole & {
+    user: {
+      name: string;
+      email: string;
+      profile_type?: string;
+    };
+    organization?: {
+      id: number;
+      name: string;
+    } | null;
+  })[]> {
+    // Primeiro, buscar todos os usuários
+    const { data: allUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id, name, email, profile_type')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Erro ao buscar usuários com roles:', error);
+    if (usersError) {
+      console.error('Erro ao buscar usuários:', usersError);
       return [];
     }
 
-    return data || [];
+    // Buscar todas as organizações de uma vez para melhor performance
+    const organizationUserIds = (allUsers || [])
+      .filter(user => user.profile_type === 'organization')
+      .map(user => user.id);
+
+    const organizationsMap: Record<string, { id: number; name: string }> = {};
+
+    if (organizationUserIds.length > 0) {
+      // Buscar organizações pelo user_id (usuários principais)
+      const { data: orgsByUserId, error: orgError } = await supabase
+        .from('organizations')
+        .select('id, name, user_id')
+        .in('user_id', organizationUserIds);
+
+      if (orgError) {
+        console.error('Erro ao buscar organizações:', orgError);
+      } else if (orgsByUserId) {
+        orgsByUserId.forEach(org => {
+          if (org.user_id) {
+            organizationsMap[org.user_id] = { id: org.id, name: org.name };
+          }
+        });
+      }
+    }
+
+    // Para cada usuário, buscar a role e organização
+    const usersWithRolesAndOrgs = await Promise.all(
+      (allUsers || []).map(async (user) => {
+        // Buscar role do usuário
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        // Buscar organização do mapa (se for do tipo organization)
+        const organization = user.profile_type === 'organization'
+          ? (organizationsMap[user.id] || null)
+          : null;
+
+        // Se não tem role, criar um objeto padrão
+        const userRole: UserRole = roleData || {
+          id: '',
+          user_id: user.id,
+          role: 'user' as const,
+          created_at: '',
+          updated_at: ''
+        };
+
+        return {
+          ...userRole,
+          user: {
+            name: user.name,
+            email: user.email,
+            profile_type: user.profile_type || 'user'
+          },
+          organization
+        };
+      })
+    );
+
+    return usersWithRolesAndOrgs;
   }
 
   // Criar role para usuário (apenas admins)

@@ -13,9 +13,13 @@ import { Event } from "@/types/event";
 import { eventService } from "@/services/eventService";
 import GenericDeleteConfirmModal from "../modals/GenericDeleteConfirmModal";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthLevel } from "@/hooks/useAuthLevel";
 
 export default function EventsTable() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { isOrganization } = useAuthLevel();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -26,7 +30,7 @@ export default function EventsTable() {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      const eventsData = await eventService.getAllEvents();
+      const eventsData = await eventService.getAllEvents(user?.id);
       setEvents(eventsData);
     } catch (error) {
       console.error("Erro ao carregar eventos:", error);
@@ -36,8 +40,11 @@ export default function EventsTable() {
   };
 
   useEffect(() => {
-    loadEvents();
-  }, []);
+    if (user) {
+      loadEvents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Abrir página para criar evento
   const handleCreateEvent = () => {
@@ -66,7 +73,7 @@ export default function EventsTable() {
 
     try {
       setIsSubmitting(true);
-      const success = await eventService.deleteEvent(selectedEvent.id);
+      const success = await eventService.deleteEvent(selectedEvent.id, user?.id);
       if (success) {
         setEvents(events.filter(event => event.id !== selectedEvent.id));
       }
@@ -140,24 +147,19 @@ export default function EventsTable() {
                   >
                     Título
                   </TableCell>
-                  <TableCell
+                  {!isOrganization && <TableCell
                     isHeader
                     className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     Organização
-                  </TableCell>
+                  </TableCell>}
                   <TableCell
                     isHeader
                     className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
                     Categoria
                   </TableCell>
-                  <TableCell
-                    isHeader
-                    className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-                  >
-                    Local
-                  </TableCell>
+
                   <TableCell
                     isHeader
                     className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
@@ -204,6 +206,7 @@ export default function EventsTable() {
                         </div>
                       </div>
                     </TableCell>
+                    {!isOrganization && (
                     <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
                       {event.organization ? (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200">
@@ -213,6 +216,7 @@ export default function EventsTable() {
                         <span className="text-gray-400">-</span>
                       )}
                     </TableCell>
+                    )}
                     {/* <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
                       {event.event_category_id ? (
                         <span
@@ -300,41 +304,43 @@ export default function EventsTable() {
                             />
                           </svg>
                         </button>
-                        <button
-                          onClick={() => handleDeleteEvent(event)}
-                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                          title="Excluir evento"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
+                        {!isOrganization && (
+                          <button
+                            onClick={() => handleDeleteEvent(event)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Excluir evento"
                           >
-                            <path
-                              d="M3 6h18"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M3 6h18"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

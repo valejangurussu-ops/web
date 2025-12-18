@@ -7,15 +7,17 @@ import { EventFormData } from "@/types/event";
 import { eventService } from "@/services/eventService";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function NovoEvento() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (eventData: EventFormData) => {
          try {
            setIsSubmitting(true);
-           await eventService.createEvent(eventData);
+           await eventService.createEvent(eventData, user?.id);
            router.push("/admin/eventos");
          } catch (error) {
            console.error("Erro ao criar evento:", error);

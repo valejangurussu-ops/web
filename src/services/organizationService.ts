@@ -1,5 +1,6 @@
 import { Organization, CreateOrganizationData, UpdateOrganizationData } from "@/types/organization";
 import { supabase } from "@/lib/supabase";
+import { isOrganization } from "@/utils/permissions";
 
 export const organizationService = {
   async getAllOrganizations(): Promise<Organization[]> {
@@ -82,8 +83,17 @@ export const organizationService = {
     }
   },
 
-  async deleteOrganization(id: number): Promise<boolean> {
+  async deleteOrganization(id: number, userId?: string): Promise<boolean> {
     try {
+      // Organization users cannot delete organizations
+      if (userId) {
+        const userIsOrganization = await isOrganization(userId);
+        if (userIsOrganization) {
+          console.error('Organization users cannot delete organizations');
+          return false;
+        }
+      }
+
       const { error } = await supabase
         .from('organizations')
         .delete()

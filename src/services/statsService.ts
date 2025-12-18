@@ -1,30 +1,78 @@
-// import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export interface AdminStats {
   totalUsers: number;
   totalOrganizations: number;
   totalEvents: number;
   recentEvents: number;
-  activeUsers: number;
+  engagementRate: number;
 }
 
 class StatsService {
   async getAdminStats(): Promise<AdminStats> {
     try {
-      // Dados mockados para desenvolvimento
-      // TODO: Substituir por consultas reais ao Supabase quando a integração estiver funcionando
-      const mockStats: AdminStats = {
-        totalUsers: 1247,
-        totalOrganizations: 23,
-        totalEvents: 156,
-        recentEvents: 12,
-        activeUsers: 892
+      // Get total users
+      const { count: totalUsers, error: usersError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true });
+
+      if (usersError) {
+        console.error('Erro ao contar usuários:', usersError);
+      }
+
+      // Get total organizations
+      const { count: totalOrganizations, error: orgsError } = await supabase
+        .from('organizations')
+        .select('*', { count: 'exact', head: true });
+
+      if (orgsError) {
+        console.error('Erro ao contar organizações:', orgsError);
+      }
+
+      // Get total events
+      const { count: totalEvents, error: eventsError } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true });
+
+      if (eventsError) {
+        console.error('Erro ao contar eventos:', eventsError);
+      }
+
+      // Get recent events (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { count: recentEvents, error: recentEventsError } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', thirtyDaysAgo.toISOString());
+
+      if (recentEventsError) {
+        console.error('Erro ao contar eventos recentes:', recentEventsError);
+      }
+
+      // Calculate engagement rate (users who accepted at least one mission)
+      const { data: usersWithEvents, error: engagementError } = await supabase
+        .from('users_events')
+        .select('user_id', { distinct: true });
+
+      if (engagementError) {
+        console.error('Erro ao calcular taxa de engajamento:', engagementError);
+      }
+
+      const engagedUsers = usersWithEvents?.length || 0;
+      const totalUsersCount = totalUsers || 0;
+      const engagementRate = totalUsersCount > 0
+        ? Math.round((engagedUsers / totalUsersCount) * 100)
+        : 0;
+
+      return {
+        totalUsers: totalUsers || 0,
+        totalOrganizations: totalOrganizations || 0,
+        totalEvents: totalEvents || 0,
+        recentEvents: recentEvents || 0,
+        engagementRate
       };
-
-      // Simular delay de rede
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      return mockStats;
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);
       throw error;
@@ -55,39 +103,63 @@ class StatsService {
 
   async getRecentActivity(): Promise<Array<{type: string, description: string, date: string}>> {
     try {
-      // Dados mockados para desenvolvimento
-      const mockActivities = [
-        {
-          type: 'user',
-          description: 'Novo usuário: Maria Silva',
-          date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() // 2 horas atrás
-        },
-        {
-          type: 'event',
-          description: 'Nova missão: Limpeza da Praia',
-          date: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() // 4 horas atrás
-        },
-        {
-          type: 'organization',
-          description: 'Nova organização: Green Earth',
-          date: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() // 6 horas atrás
-        },
-        {
-          type: 'user',
-          description: 'Novo usuário: João Santos',
-          date: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString() // 8 horas atrás
-        },
-        {
-          type: 'event',
-          description: 'Nova missão: Aula de Programação',
-          date: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString() // 12 horas atrás
-        }
-      ];
+      const activities: Array<{type: string, description: string, date: string}> = [];
 
-      // Simular delay de rede
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // Get recent users (last 10)
+      const { data: recentUsers, error: usersError } = await supabase
+        .from('users')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-      return mockActivities;
+      if (!usersError && recentUsers) {
+        recentUsers.forEach(user => {
+          activities.push({
+            type: 'user',
+            description: `Novo usuário: ${user.name || 'Sem nome'}`,
+            date: user.created_at
+          });
+        });
+      }
+
+      // Get recent events (last 10)
+      const { data: recentEvents, error: eventsError } = await supabase
+        .from('events')
+        .select('id, title, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!eventsError && recentEvents) {
+        recentEvents.forEach(event => {
+          activities.push({
+            type: 'event',
+            description: `Nova missão: ${event.title}`,
+            date: event.created_at
+          });
+        });
+      }
+
+      // Get recent organizations (last 10)
+      const { data: recentOrgs, error: orgsError } = await supabase
+        .from('organizations')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!orgsError && recentOrgs) {
+        recentOrgs.forEach(org => {
+          activities.push({
+            type: 'organization',
+            description: `Nova organização: ${org.name}`,
+            date: org.created_at
+          });
+        });
+      }
+
+      // Sort by date (most recent first) and limit to 10
+      activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      return activities.slice(0, 10);
     } catch (error) {
       console.error('Erro ao buscar atividades recentes:', error);
       return [];

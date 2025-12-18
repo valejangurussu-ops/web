@@ -11,7 +11,7 @@ interface AdminAuthCheckProps {
 
 export function AdminAuthCheck({ children }: AdminAuthCheckProps) {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, loading: roleLoading } = useAuthLevel();
+  const { isAdmin, isOrganization, isSuperAdmin, loading: roleLoading } = useAuthLevel();
   const router = useRouter();
   const [hasChecked, setHasChecked] = useState(false);
 
@@ -25,17 +25,18 @@ export function AdminAuthCheck({ children }: AdminAuthCheckProps) {
       return;
     }
 
-    // Se tem usuário mas não é admin, mostra acesso negado
-    if (user && !isAdmin) {
+    // Apenas Super Admin e Organization Admin podem acessar
+    // Usuários comuns (profile_type='user') não podem acessar
+    if (user && !isAdmin && !isOrganization) {
       setHasChecked(true);
       return;
     }
 
-    // Se é admin, permite acesso
-    if (isAdmin) {
+    // Se é admin (super ou organization), permite acesso
+    if (isAdmin || isOrganization) {
       setHasChecked(true);
     }
-  }, [user, isAdmin, authLoading, roleLoading, router]);
+  }, [user, isAdmin, isOrganization, authLoading, roleLoading, router]);
 
   // Mostra loading enquanto verifica
   if (authLoading || roleLoading) {
@@ -54,8 +55,8 @@ export function AdminAuthCheck({ children }: AdminAuthCheckProps) {
     return null;
   }
 
-  // Se tem usuário mas não é admin, mostra acesso negado
-  if (user && !isAdmin && hasChecked) {
+  // Se tem usuário mas não é admin nem organization, mostra acesso negado
+  if (user && !isAdmin && !isOrganization && hasChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -72,8 +73,8 @@ export function AdminAuthCheck({ children }: AdminAuthCheckProps) {
     );
   }
 
-  // Se é admin, renderiza o conteúdo
-  if (isAdmin && hasChecked) {
+  // Se é admin (super ou organization), renderiza o conteúdo
+  if ((isAdmin || isOrganization) && hasChecked) {
     return <>{children}</>;
   }
 

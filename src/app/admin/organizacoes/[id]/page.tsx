@@ -6,14 +6,91 @@ import { Organization } from "@/types/organization";
 import { organizationService } from "@/services/organizationService";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import OrganizationUserForm from "@/components/forms/OrganizationUserForm";
+import { useAuthLevel } from "@/hooks/useAuthLevel";
+import { useAuth } from "@/contexts/AuthContext";
+import { getUserOrganizationId } from "@/utils/permissions";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+interface OrganizationUser {
+  id: string;
+  name: string;
+  email: string;
+  profile_type?: string;
+  created_at: string;
+}
 
 export default function DetalhesOrganizacao() {
   const router = useRouter();
   const params = useParams();
   const organizationId = parseInt(params.id as string);
+  const { isOrganization, loading: authLevelLoading } = useAuthLevel();
+  const { user } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<OrganizationUser[]>([]);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userOrgId, setUserOrgId] = useState<number | null>(null);
+
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await fetch(`/api/organizations/${organizationId}/users`);
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar usuários:", err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    const initialize = async () => {
+      if (isOrganization && user) {
+        // Get organization ID for organization admins
+        let orgId = await getUserOrganizationId(user.id);
+
+        // If not found, try via API (for additional users with metadata)
+        if (!orgId) {
+          try {
+            const response = await fetch('/api/users/organizations', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ userIds: [user.id] }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const org = data.organizations?.[user.id];
+              if (org) {
+                orgId = org.id;
+              }
+            }
+          } catch (error) {
+            console.error('Erro ao buscar organização via API:', error);
+          }
+        }
+
+        setUserOrgId(orgId);
+      }
+    };
+
+    initialize();
+  }, [isOrganization, user]);
 
   useEffect(() => {
     const loadOrganization = async () => {
@@ -22,6 +99,8 @@ export default function DetalhesOrganizacao() {
         const organizationData = await organizationService.getOrganizationById(organizationId);
         if (organizationData) {
           setOrganization(organizationData);
+          // Load users after organization is loaded
+          await loadUsers();
         } else {
           setError("Organização não encontrada");
         }
@@ -38,12 +117,43 @@ export default function DetalhesOrganizacao() {
     }
   }, [organizationId]);
 
+  const handleCreateUser = async (userData: { name: string; email: string; password?: string }) => {
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`/api/organizations/${organizationId}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        console.error('API Error Response:', responseData);
+        throw new Error(responseData.error || responseData.details || 'Failed to create user');
+      }
+
+      // Reload users
+      await loadUsers();
+      setShowUserForm(false);
+      alert('Usuário criado com sucesso!');
+    } catch (error) {
+      console.error("Erro ao criar usuário:", error);
+      alert(error instanceof Error ? error.message : "Erro ao criar usuário.");
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDeleteOrganization = async () => {
     if (!organization) return;
 
     if (confirm(`Tem certeza que deseja excluir a organização ${organization.name}?`)) {
       try {
-        const success = await organizationService.deleteOrganization(organization.id);
+        const success = await organizationService.deleteOrganization(organization.id, user?.id);
         if (success) {
           router.push("/admin/organizacoes");
         } else {
@@ -195,6 +305,100 @@ export default function DetalhesOrganizacao() {
           </div>
         </ComponentCard>
 
+        {/* Usuários da Organização */}
+        <ComponentCard title={`Usuários da Organização (${users.length})`}>
+          <div className="space-y-4">
+            {!showUserForm ? (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Usuários
+                  </h3>
+                  {/* Organization admins cannot create new users */}
+                  {!isOrganization && (
+                    <button
+                      onClick={() => setShowUserForm(true)}
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-brand-500 border border-transparent rounded-lg hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500"
+                    >
+                      + Adicionar Usuário
+                    </button>
+                  )}
+                </div>
+
+                {loadingUsers ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-500 dark:text-gray-400">Carregando usuários...</div>
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Nenhum usuário cadastrado para esta organização.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
+                            Nome
+                          </TableCell>
+                          <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
+                            Email
+                          </TableCell>
+                          <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">
+                            Data de Cadastro
+                          </TableCell>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                        {users.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell className="px-5 py-4 sm:px-6 text-start">
+                              <span className="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                                {user.name}
+                              </span>
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                              {user.email}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                              {new Date(user.created_at).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              })}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Novo Usuário
+                  </h3>
+                  <button
+                    onClick={() => setShowUserForm(false)}
+                    className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <OrganizationUserForm
+                  onSubmit={handleCreateUser}
+                  onCancel={() => setShowUserForm(false)}
+                  isLoading={isSubmitting}
+                />
+              </div>
+            )}
+          </div>
+        </ComponentCard>
+
         {/* Ações */}
         <ComponentCard title="Ações">
           <div className="flex space-x-4">
@@ -204,12 +408,14 @@ export default function DetalhesOrganizacao() {
             >
               Editar
             </button>
-            <button
-              onClick={handleDeleteOrganization}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-500 border border-transparent rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-            >
-              Excluir
-            </button>
+            {!isOrganization && (
+              <button
+                onClick={handleDeleteOrganization}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-500 border border-transparent rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Excluir
+              </button>
+            )}
             <button
               onClick={() => router.push("/admin/organizacoes")}
               className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"

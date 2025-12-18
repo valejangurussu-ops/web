@@ -6,6 +6,9 @@ import { Organization } from "@/types/organization";
 import { EventCategory } from "@/types/eventCategory";
 import { organizationService } from "@/services/organizationService";
 import { eventCategoryService } from "@/services/eventCategoryService";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthLevel } from "@/hooks/useAuthLevel";
+import { getUserOrganizationId } from "@/utils/permissions";
 
 interface EventFormProps {
   event?: Event | null;
@@ -15,6 +18,10 @@ interface EventFormProps {
 }
 
 export default function EventForm({ event, onSubmit, onCancel, isLoading = false }: EventFormProps) {
+  const { user } = useAuth();
+  const { isOrganization, loading: authLevelLoading } = useAuthLevel();
+  const [userOrgId, setUserOrgId] = useState<number | null>(null);
+
   const [formData, setFormData] = useState<EventFormData>({
     title: "",
     image: null,
@@ -29,20 +36,6 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading = false
   const [categories, setCategories] = useState<EventCategory[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (event) {
-      setFormData({
-        title: event.title,
-        image: event.image,
-        description: event.description || "",
-        location: event.location || "",
-        instructions: event.instructions || "",
-        organization_id: event.organization_id,
-        event_category_id: event.event_category_id,
-      });
-    }
-  }, [event]);
-
   // Carregar organizações e categorias
   useEffect(() => {
     const loadData = async () => {
@@ -53,13 +46,54 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading = false
         ]);
         setOrganizations(orgs);
         setCategories(cats);
+
+        // Se for organization admin, buscar sua organização e preencher automaticamente
+        if (user && isOrganization) {
+          const orgId = await getUserOrganizationId(user.id);
+          if (orgId) {
+            setUserOrgId(orgId);
+            // Always set organization_id for organization users (both create and edit)
+            // This ensures organization users can only create/edit events for their own organization
+            setFormData(prev => ({ ...prev, organization_id: orgId }));
+          }
+        }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
       }
     };
 
-    loadData();
-  }, []);
+    if (!authLevelLoading) {
+      loadData();
+    }
+  }, [user, isOrganization, authLevelLoading]);
+
+  // Load event data after organizations are loaded (to avoid race conditions)
+  useEffect(() => {
+    if (event && !isOrganization) {
+      // Only set event data for non-organization users
+      // Organization users will have their organization_id set automatically above
+      setFormData({
+        title: event.title,
+        image: event.image,
+        description: event.description || "",
+        location: event.location || "",
+        instructions: event.instructions || "",
+        organization_id: event.organization_id,
+        event_category_id: event.event_category_id,
+      });
+    } else if (event && isOrganization && userOrgId) {
+      // For organization users, load event data but keep their organization_id
+      setFormData({
+        title: event.title,
+        image: event.image,
+        description: event.description || "",
+        location: event.location || "",
+        instructions: event.instructions || "",
+        organization_id: userOrgId, // Force organization_id to user's organization
+        event_category_id: event.event_category_id,
+      });
+    }
+  }, [event, isOrganization, userOrgId]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -182,25 +216,27 @@ export default function EventForm({ event, onSubmit, onCancel, isLoading = false
           )}
         </div>
 
-        {/* Organização */}
-        <div>
-          <label htmlFor="organization_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Organização
-          </label>
-          <select
-            id="organization_id"
-            value={formData.organization_id || ""}
-            onChange={(e) => handleInputChange("organization_id", e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white border-gray-300"
-          >
-            <option value="">Selecione uma organização (opcional)</option>
-            {organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Organização - Only show for super admins, hidden for organization users */}
+        {!isOrganization && (
+          <div>
+            <label htmlFor="organization_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Organização
+            </label>
+            <select
+              id="organization_id"
+              value={formData.organization_id || ""}
+              onChange={(e) => handleInputChange("organization_id", e.target.value ? parseInt(e.target.value) : null)}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white border-gray-300"
+            >
+              <option value="">Selecione uma organização (opcional)</option>
+              {organizations.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Categoria */}
         <div>

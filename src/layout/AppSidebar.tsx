@@ -4,6 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
+import { useAuthLevel } from "@/hooks/useAuthLevel";
+import { useAuth } from "@/contexts/AuthContext";
+import { getUserOrganizationId } from "@/utils/permissions";
 import {
   ChevronDownIcon,
   HorizontaLDots,
@@ -20,42 +23,94 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-const navItems: NavItem[] = [
-  {
-    name: "Dashboard",
-    icon: <PieChartIcon />,
-    path: "/admin"
-  },
-  {
-    name: "Usuários",
-    icon: <UserIcon />,
-    path: "/admin/usuarios"
-  },
-  {
-    name: "Eventos",
-    icon: <CalenderIcon />,
-    subItems: [
-      {
-        name: "Lista de Eventos",
-        path: "/admin/eventos"
-      },
-      {
-        name: "Categorias",
-        path: "/admin/categorias"
-      }
-    ]
-  },
-  {
-    name: "Organizações",
-    icon: <GroupIcon />,
-    path: "/admin/organizacoes"
-  },
-];
-
-
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const { isOrganization, loading: authLevelLoading } = useAuthLevel();
+  const { user } = useAuth();
+  const [organizationId, setOrganizationId] = useState<number | null>(null);
+
+  // Fetch organization ID for organization users
+  useEffect(() => {
+    const fetchOrganizationId = async () => {
+      if (isOrganization && user) {
+        const orgId = await getUserOrganizationId(user.id);
+        setOrganizationId(orgId);
+      }
+    };
+
+    if (isOrganization && user && !authLevelLoading) {
+      fetchOrganizationId();
+    }
+  }, [isOrganization, user, authLevelLoading]);
+
+  // Define nav items based on user type
+  const getNavItems = (): NavItem[] => {
+    if (authLevelLoading) return [];
+
+    if (isOrganization) {
+      // Organization admins: Organization details instead of Users, and Events (restricted)
+      // NO dashboard access
+      const navItems: NavItem[] = [];
+
+      // Add "Detalhes da Organização" if we have the organization ID
+      if (organizationId !== null) {
+        navItems.push({
+          name: "Detalhes da Organização",
+          icon: <GroupIcon />,
+          path: `/admin/organizacoes/${organizationId}`
+        });
+      }
+
+      navItems.push({
+        name: "Eventos",
+        icon: <CalenderIcon />,
+        subItems: [
+          {
+            name: "Meus Eventos",
+            path: "/admin/eventos"
+          }
+        ]
+      });
+
+      return navItems;
+    } else {
+      // Full admins: all items
+      return [
+        {
+          name: "Dashboard",
+          icon: <PieChartIcon />,
+          path: "/admin"
+        },
+        {
+          name: "Usuários",
+          icon: <UserIcon />,
+          path: "/admin/usuarios"
+        },
+        {
+          name: "Eventos",
+          icon: <CalenderIcon />,
+          subItems: [
+            {
+              name: "Lista de Eventos",
+              path: "/admin/eventos"
+            },
+            {
+              name: "Categorias",
+              path: "/admin/categorias"
+            }
+          ]
+        },
+        {
+          name: "Organizações",
+          icon: <GroupIcon />,
+          path: "/admin/organizacoes"
+        },
+      ];
+    }
+  };
+
+  const navItems = getNavItems();
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -193,9 +248,11 @@ const AppSidebar: React.FC = () => {
   }, [pathname]);
 
   useEffect(() => {
+    if (authLevelLoading) return;
+
     // Check if the current path matches any submenu item
     let submenuMatched = false;
-    const items = navItems;
+    const items = getNavItems();
     items.forEach((nav, index) => {
       if (nav.subItems) {
         nav.subItems.forEach((subItem) => {
@@ -213,7 +270,7 @@ const AppSidebar: React.FC = () => {
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
-  }, [pathname, isActive]);
+  }, [pathname, isActive, authLevelLoading, isOrganization, organizationId]);
 
   useEffect(() => {
     // Set the height of the submenu items when the submenu is opened
@@ -302,7 +359,13 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {authLevelLoading ? (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+                </div>
+              ) : (
+                renderMenuItems(navItems, "main")
+              )}
             </div>
 
           </div>

@@ -4,61 +4,72 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
-export type AuthLevel = 'unauthenticated' | 'user' | 'admin';
+export type AuthLevel = 'unauthenticated' | 'user' | 'admin' | 'organization';
 
-interface UserRole {
+interface UserProfileData {
   role: 'user' | 'admin';
+  profile_type: 'user' | 'admin' | 'organization';
 }
 
 export function useAuthLevel() {
   const { user, loading } = useAuth();
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+  const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
-      setUserRole(null);
-      setRoleLoading(false);
+      setUserProfileData(null);
+      setProfileLoading(false);
       return;
     }
 
-    const fetchUserRole = async () => {
+    const fetchUserProfile = async () => {
       try {
-        setRoleLoading(true);
-        const { data, error } = await supabase
+        setProfileLoading(true);
+        // Fetch both role from user_roles and profile_type from users
+        const { data: roleData, error: roleError } = await supabase
           .from('user_roles')
           .select('role')
           .eq('user_id', user.id)
           .single();
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-          console.error('Erro ao buscar role do usuário:', error);
-          setUserRole({ role: 'user' }); // Default para user
-        } else {
-          setUserRole(data || { role: 'user' });
+        const { data: profileTypeData, error: profileTypeError } = await supabase
+          .from('users')
+          .select('profile_type')
+          .eq('id', user.id)
+          .single();
+
+        if (roleError && roleError.code !== 'PGRST116') {
+          console.error('Erro ao buscar role do usuário:', roleError);
         }
+        if (profileTypeError && profileTypeError.code !== 'PGRST116') {
+          console.error('Erro ao buscar profile_type do usuário:', profileTypeError);
+        }
+
+        setUserProfileData({
+          role: roleData?.role || 'user',
+          profile_type: profileTypeData?.profile_type || 'user',
+        });
+
       } catch (error) {
-        console.error('Erro ao buscar role do usuário:', error);
-        setUserRole({ role: 'user' }); // Default para user
+        console.error('Erro ao buscar dados do perfil do usuário:', error);
+        setUserProfileData({ role: 'user', profile_type: 'user' }); // Default
       } finally {
-        setRoleLoading(false);
+        setProfileLoading(false);
       }
     };
 
-    fetchUserRole();
+    fetchUserProfile();
   }, [user]);
 
   const getAuthLevel = (): AuthLevel => {
-    // Se ainda está carregando e não temos user, retorna unauthenticated
     if (loading && !user) return 'unauthenticated';
-
-    // Se não tem user, retorna unauthenticated
     if (!user) return 'unauthenticated';
+    if (profileLoading) return 'user'; // Assume user while loading
 
-    // Se tem user mas ainda está carregando role, assume user por padrão
-    if (roleLoading) return 'user';
-
-    return userRole?.role === 'admin' ? 'admin' : 'user';
+    if (userProfileData?.profile_type === 'organization') return 'organization';
+    if (userProfileData?.profile_type === 'admin') return 'admin';
+    return 'user';
   };
 
   const authLevel = getAuthLevel();
@@ -67,13 +78,16 @@ export function useAuthLevel() {
     const levelHierarchy: Record<AuthLevel, number> = {
       'unauthenticated': 0,
       'user': 1,
-      'admin': 2
+      'organization': 2, // Organization has higher access than regular user
+      'admin': 3         // Super admin has highest access
     };
 
     return levelHierarchy[authLevel] >= levelHierarchy[requiredLevel];
   };
 
-  const isAdmin = authLevel === 'admin';
+  const isSuperAdmin = userProfileData?.profile_type === 'admin';
+  const isOrganization = userProfileData?.profile_type === 'organization';
+  const isAdmin = isSuperAdmin || isOrganization; // Both can access admin panel
   const isUser = authLevel === 'user';
   const isUnauthenticated = authLevel === 'unauthenticated';
   const isAuthenticated = authLevel !== 'unauthenticated';
@@ -82,10 +96,13 @@ export function useAuthLevel() {
     authLevel,
     canAccess,
     isAdmin,
+    isSuperAdmin,
+    isOrganization,
     isUser,
     isUnauthenticated,
     isAuthenticated,
-    loading: loading || roleLoading,
-    userRole
+    loading: loading || profileLoading,
+    profileType: userProfileData?.profile_type,
+    userRole: userProfileData?.role
   };
 }

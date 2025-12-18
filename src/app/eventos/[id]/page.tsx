@@ -300,9 +300,12 @@ export default function EventDetailsPage() {
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
                         Organização
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <Link
+                        href={`/organizacoes/${event.organization.id}`}
+                        className="text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
+                      >
                         {event.organization.name}
-                      </p>
+                      </Link>
                     </div>
                   </div>
                 )}
